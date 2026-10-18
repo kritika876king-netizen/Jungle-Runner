@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#10251c">
+<title>Divine Dash — Mythic Runner</title>
+<style>
+:root{--gold:#ffd76a;--mint:#8dffc4;--ink:#10251c}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9bdcf1;color:white;font-family:system-ui,-apple-system,Arial,sans-serif;touch-action:none}
+canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;top:env(safe-area-inset-top,8px);left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:12px;pointer-events:none;z-index:2;text-shadow:0 2px 5px #10251c}
+.pill{background:#10251cdd;border:1px solid #ffffff40;border-radius:14px;padding:8px 12px;font-weight:800;font-size:14px}
+#brand{font-size:16px;letter-spacing:.8px;color:var(--gold)}
+#tip{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:2;background:#10251cce;padding:8px 13px;border-radius:14px;font-size:12px;text-align:center;white-space:nowrap;pointer-events:none}
+#overlay{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:18px;background:linear-gradient(#06241c55,#06241ce8)}
+.panel{width:min(440px,100%);max-height:92dvh;overflow:auto;background:#102b24f5;border:1px solid #c5ffdd65;border-radius:24px;padding:20px;box-shadow:0 20px 70px #00130d80;text-align:center}
+h1{margin:0;color:var(--gold);font-size:clamp(27px,7vw,38px);letter-spacing:1px}
+.sub{color:#d5eee2;font-size:13px;line-height:1.45;margin:7px 0 14px}
+.characters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+.char{background:#1c4035;border:2px solid transparent;border-radius:14px;padding:9px 4px;color:white;font-size:12px;line-height:1.25;min-height:84px}
+.char.selected{border-color:var(--gold);background:#38533b}
+.emoji{font-size:27px;display:block;margin-bottom:5px}
+button{font:inherit;cursor:pointer}
+#start{width:100%;border:0;border-radius:15px;background:linear-gradient(100deg,#ffe17a,#8dffc4);color:#14251b;font-weight:900;font-size:18px;padding:14px;margin-top:6px}
+#instructions{font-size:12px;color:#d4eadc;line-height:1.6;margin-top:12px}
+#toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:4;background:#10251cdd;border-radius:14px;padding:9px 14px;font-weight:800;display:none}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="hud" class="hidden">
+  <div><div id="brand">✨ DIVINE DASH</div><div class="pill">🏅 <span id="score">0</span></div></div>
+  <div class="pill">🪙 <span id="coins">0</span></div>
+</div>
+<div id="toast"></div>
+<div id="tip" class="hidden">SWIPE ← → to move • ↑ jump • ↓ slide</div>
+<div id="overlay">
+ <div class="panel">
+  <h1>DIVINE DASH</h1>
+  <div class="sub">A myth-inspired endless runner<br>Run through a magical Indian world!</div>
+  <div class="characters" id="characters">
+   <button class="char selected" data-char="vanara"><span class="emoji">🐒</span><b>Vanara Hero</b><br>Brave & swift</button>
+   <button class="char" data-char="archer"><span class="emoji">🏹</span><b>Archer Prince</b><br>Forest guardian</button>
+   <button class="char" data-char="guardian"><span class="emoji">🪈</span><b>Flute Guardian</b><br>Peaceful & clever</button>
+  </div>
+  <button id="start">▶ START RUN</button>
+  <div id="instructions">Swipe left/right to change lanes.<br>Swipe up to jump, down to slide.<br>Collect golden coins and avoid obstacles.</div>
+  <div class="sub" style="margin-bottom:0;margin-top:10px">Original game concept • Made for mobile</div>
+ </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(()=> {
+const overlay=document.getElementById('overlay'), hud=document.getElementById('hud'), tip=document.getElementById('tip');
+if(!window.THREE){overlay.querySelector('.sub').textContent='The 3D engine could not load. Check your internet connection, then refresh this page.';return;}
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x8bd8ed);scene.fog=new THREE.Fog(0x8bd8ed,35,125);
+const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,.1,220);camera.position.set(0,5.2,9.5);
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xe8fbff,0x39512d,2.1));
+const sun=new THREE.DirectionalLight(0xfff0c8,2.2);sun.position.set(-8,14,7);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+const mat=(c,r=.78,metal=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:metal});
+const M={grass:mat(0x27744b),road:mat(0x39444a),line:mat(0xf5e9b8),bark:mat(0x76502e),leaf:mat(0x176747),leaf2:mat(0x31834d),gold:mat(0xffca36,.28,.3),red:mat(0xe65348),stone:mat(0xc2a477),white:mat(0xf6edda),dark:mat(0x26334a),skin:mat(0xd99465),blue:mat(0x2386c8),orange:mat(0xf29b35),purple:mat(0x654cc0)};
+const box=(parent,w,h,d,m,x,y,z)=>{let o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o};
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(220,220),M.grass);ground.rotation.x=-Math.PI/2;ground.position.set(0,-.18,-65);ground.receiveShadow=true;scene.add(ground);
+const road=box(scene,8,.18,210,M.road,0,-.08,-85);road.receiveShadow=true;
+for(const x of [-1.34,1.34])box(scene,.055,.025,210,M.line,x,.02,-85);
+for(let i=0;i<36;i++)for(const side of [-1,1]){let z=-i*5-3,x=side*(6.2+Math.random()*4);let g=new THREE.Group();g.position.set(x,0,z);box(g,.3,1.5,.3,M.bark,0,.75,0);let crown=new THREE.Mesh(new THREE.ConeGeometry(1.15,2.7,7),i%2?M.leaf:M.leaf2);crown.position.y=2.45;crown.castShadow=true;g.add(crown);scene.add(g);scenery.push(g);}
+const scenery=[];
+function temple(x,z,s=1){let g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(s);box(g,2.8,.5,2.2,M.stone,0,.25,0);box(g,1.7,1.8,1.4,M.stone,0,1.2,0);let roof=new THREE.Mesh(new THREE.ConeGeometry(1.3,1.6,4),mat(0xd89c43));roof.position.y=2.9;roof.rotation.y=Math.PI/4;g.add(roof);scene.add(g);scenery.push(g)}
+temple(-8,-24,.9);temple(8,-48,1.1);temple(-8,-78,.85);
+let player=new THREE.Group();scene.add(player);player.position.set(0,0,2);
+let selected='vanara',running=false,ended=false,lane=0,targetX=0,vy=0,onGround=true,slideTime=0,score=0,coins=0,spawn=0,time=0;
+function buildHero(kind){while(player.children.length)player.remove(player.children[0]);let tunic=kind==='archer'?M.orange:kind==='guardian'?M.blue:mat(0xb64b27);let skin=kind==='guardian'?mat(0x4b9bd4):kind==='archer'?M.skin:mat(0xb9784b);
+box(player,.66,.8,.4,tunic,0,1.05,0);box(player,.46,.46,.44,skin,0,1.72,0);box(player,.5,.14,.46,kind==='guardian'?M.purple:kind==='archer'?M.gold:M.orange,0,1.98,0);
+box(player,.19,.62,.23,skin,-.43,1.05,0);box(player,.19,.62,.23,skin,.43,1.05,0);
+box(player,.23,.58,.25,M.dark,-.19,.34,0);box(player,.23,.58,.25,M.dark,.19,.34,0);
+if(kind==='vanara'){let tail=new THREE.Mesh(new THREE.TorusGeometry(.38,.085,8,14,Math.PI*1.5),M.orange);tail.position.set(-.45,.8,-.22);tail.rotation.y=Math.PI/2;player.add(tail);box(player,.28,.12,.22,M.gold,0,2.08,0);}
+if(kind==='archer'){box(player,.09,.85,.09,M.gold,.42,1.35,-.12);let bow=new THREE.Mesh(new THREE.TorusGeometry(.26,.035,7,14,Math.PI),M.gold);bow.position.set(.52,1.35,-.1);bow.rotation.z=Math.PI/2;player.add(bow);}
+if(kind==='guardian'){box(player,.07,.72,.07,M.gold,.42,1.4,0);box(player,.18,.08,.08,M.gold,.42,1.72,0);}
+}
+buildHero(selected);
+const objects=[];
+function spawnObj(type,l,z){let g=new THREE.Group();g.position.set((l-1)*2.15,0,-95);
+if(type==='coin'){let a=new THREE.Mesh(new THREE.TorusGeometry(.32,.12,9,18),M.gold);a.position.y=1.15;g.add(a);box(g,.09,.48,.09,M.gold,0,1.15,0);}
+if(type==='block'){box(g,1.1,1.2,.85,M.red,0,.6,0);box(g,.8,.12,.9,M.gold,0,1,.02);}
+if(type==='bar'){box(g,1.7,.18,.28,M.gold,0,1.35,0);box(g,.12,1.1,.15,M.red,-.75,.5,0);box(g,.12,1.1,.15,M.red,.75,.5,0);}
+if(type==='cart'){box(g,1.55,2.25,2.4,M.blue,0,1.12,0);box(g,1.1,.6,.06,M.white,0,1.7,1.22);box(g,1.2,.12,.08,M.red,0,.4,1.23);}
+scene.add(g);objects.push({g,type,l,hit:false});}
+function start(){objects.forEach(o=>scene.remove(o.g));objects.length=0;lane=0;targetX=0;player.position.set(0,0,2);vy=0;onGround=true;slideTime=0;score=0;coins=0;spawn=.5;time=0;running=true;ended=false;overlay.classList.add('hidden');hud.classList.remove('hidden');tip.classList.remove('hidden');}
+document.querySelectorAll('.char').forEach(b=>b.onclick=()=>{selected=b.dataset.char;document.querySelectorAll('.char').forEach(a=>a.classList.toggle('selected',a===b));buildHero(selected)});
+document.getElementById('start').onclick=start;
+function move(n){if(running) {lane=Math.max(-1,Math.min(1,lane+n));targetX=lane*2.15}}
+function jump(){if(running&&onGround){vy=8;onGround=false}}
+function duck(){if(running)slideTime=.7}
+let sx=0,sy=0;
+addEventListener('touchstart',e=>{sx=e.changedTouches[0].clientX;sy=e.changedTouches[0].clientY},{passive:true});
+addEventListener('touchend',e=>{let dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;if(Math.abs(dx)>Math.abs(dy))move(dx>0?1:-1);else if(dy<0)jump();else duck()},{passive:true});
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')move(-1);if(e.key==='ArrowRight'||e.key==='d')move(1);if(e.key==='ArrowUp'||e.key===' ')jump();if(e.key==='ArrowDown')duck()});
+function end(){running=false;ended=true;overlay.classList.remove('hidden');overlay.querySelector('.panel').innerHTML='<h1>RUN OVER!</h1><div class="sub">Score: '+score+'<br>Coins: '+coins+'<br>Great run! Try again and beat your best.</div><button id="start">▶ RUN AGAIN</button><div class="sub" style="margin-top:12px">Divine Dash • Myth-inspired runner</div>';document.getElementById('start').onclick=()=>{overlay.querySelector('.panel').innerHTML='<h1>DIVINE DASH</h1><div class="sub">Ready for another run?</div><button id="start">▶ START RUN</button>';document.getElementById('start').onclick=start;start()};}
+const clock=new THREE.Clock();
+function loop(){requestAnimationFrame(loop);let dt=Math.min(clock.getDelta(),.04);
+if(running){time+=dt;score=Math.floor(time*10);spawn-=dt;if(spawn<=0){let l=Math.floor(Math.random()*3),r=Math.random();spawn=Math.max(.52,1.05-time*.006);spawnObj(r<.52?'coin':r<.73?'block':r<.9?'bar':'cart',l);}
+player.position.x+=(targetX-player.position.x)*Math.min(1,dt*12);vy-=19*dt;player.position.y+=vy*dt;if(player.position.y<=0){player.position.y=0;vy=0;onGround=true}slideTime=Math.max(0,slideTime-dt);player.scale.y=slideTime>0?.62:1;
+objects.forEach(o=>{o.g.position.z+=(18+Math.min(time*.22,14))*dt;if(o.type==='coin')o.g.rotation.y+=dt*4;if(!o.hit&&Math.abs(o.g.position.z-player.position.z)<1.15&&Math.abs(o.g.position.x-player.position.x)<1.05){if(o.type==='coin'){o.hit=true;o.g.visible=false;coins++}else if(o.type==='block'&&player.position.y>1.05){o.hit=true}else if(o.type==='bar'&&slideTime>0){o.hit=true}else end()}});
+for(let i=objects.length-1;i>=0;i--)if(objects[i].g.position.z>12){scene.remove(objects[i].g);objects.splice(i,1)}
+for(const g of scenery){g.position.z+= (18+Math.min(time*.22,14))*dt;if(g.position.z>12)g.position.z-=180}
+document.getElementById('score').textContent=score;document.getElementById('coins').textContent=coins;
+}
+camera.position.x+=(player.position.x*.3-camera.position.x)*Math.min(1,dt*2);camera.lookAt(player.position.x*.2,1,-5);renderer.render(scene,camera)}
+loop();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+})();
+</script>
+</body>
+</html>
