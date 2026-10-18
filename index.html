@@ -1,1 +1,48 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jungle Runner</title>
+<style>
+body{margin:0;background:#132b20;color:white;font-family:Arial;text-align:center;padding:12px}
+h1{color:#a8ff60}
+canvas{width:100%;max-width:600px;background:#dff6ff;border-radius:12px;touch-action:manipulation}
+button{padding:13px 24px;border:0;border-radius:10px;background:#a8ff60;font-size:18px;font-weight:bold}
+</style>
+</head>
+<body>
+<h1>🌴 JUNGLE RUNNER</h1>
+<p>Tap the game to jump!</p>
+<h3 id="score">Score: 0</h3>
+<canvas id="c" width="600" height="300"></canvas><br><br>
+<button onclick="start()">Start / Restart</button>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+let p,obs,s,frame,alive,started;
+function start(){p={y:210,vy:0};obs=[];s=0;frame=0;alive=true;started=true}
+function jump(){if(!started||!alive){start();return}if(p.y>=210)p.vy=-12}
+c.addEventListener('pointerdown',jump);
+function loop(){
+x.clearRect(0,0,600,300);
+x.fillStyle='#dff6ff';x.fillRect(0,0,600,300);
+x.fillStyle='#70bd65';x.fillRect(0,250,600,50);
+x.font='30px Arial';x.fillText('☁️',420,65);x.fillText('☁️',170,90);
+if(started&&alive){
+frame++;p.vy+=.6;p.y+=p.vy;if(p.y>210){p.y=210;p.vy=0}
+if(frame%85===0)obs.push({x:610});
+obs.forEach(o=>o.x-=4+Math.min(s/100,3));
+obs=obs.filter(o=>o.x>-30);
+s=Math.floor(frame/5);document.getElementById('score').textContent='Score: '+s;
+for(let o of obs)if(85<o.x+25&&115>o.x&&p.y+35>220){alive=false}
+}
+x.font='35px Arial';x.fillText('🏃',75,p.y+35);
+x.fillStyle='#80502a';obs.forEach(o=>x.fillRect(o.x,220,25,30));
+if(!started||!alive){x.fillStyle='#10251c';x.font='bold 27px Arial';x.textAlign='center';x.fillText(started?'GAME OVER':'PRESS START',300,150);x.textAlign='left'}
+requestAnimationFrame(loop)
+}
+start();started=false;loop();
+</script>
+</body>
+</html>
