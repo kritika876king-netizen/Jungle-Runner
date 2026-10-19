@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Divine Dash — 3D Runner</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#091322;font-family:system-ui,Arial,sans-serif;color:#fff;touch-action:none}
+#game{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none;padding:14px}
+.pill{background:#081525cc;border:1px solid #ffffff30;border-radius:14px;padding:9px 13px;font-weight:800;text-shadow:0 2px 4px #000}
+#top{display:flex;justify-content:space-between;gap:10px}
+#hint{position:absolute;top:68px;left:50%;transform:translateX(-50%);font-size:12px;white-space:nowrap;background:#081525a8;padding:7px 12px;border-radius:20px}
+#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:22px;background:linear-gradient(#06101b35,#06101bcc);z-index:5}
+.panel{width:min(420px,100%);background:#0b1c2beF;border:1px solid #e3c16b80;border-radius:24px;padding:24px 20px;text-align:center;box-shadow:0 20px 70px #0008}
+h1{margin:0 0 5px;font-size:32px;letter-spacing:1px;color:#ffd76c}p{line-height:1.45;color:#d4e2ef;margin:8px 0 16px}
+button{border:0;border-radius:14px;padding:13px 18px;font-size:16px;font-weight:900;cursor:pointer}
+#start{width:100%;background:linear-gradient(90deg,#ffcc52,#ff8a32);color:#281606}
+#pick{display:flex;gap:7px;margin:14px 0}
+.pick{flex:1;background:#183249;color:#e7f3ff;border:1px solid #ffffff25;padding:10px 4px;font-size:12px}
+.pick.active{background:#275c72;border-color:#ffd76c;color:#fff}
+#sub{font-size:12px;color:#9eb5c9;margin-top:12px}
+#mobileControls{position:fixed;bottom:22px;left:0;right:0;display:flex;justify-content:space-between;padding:0 22px;pointer-events:none;z-index:3}
+.ctrl{width:58px;height:58px;border-radius:50%;background:#08152599;border:1px solid #ffffff55;color:white;font-size:24px;pointer-events:auto;touch-action:manipulation}
+#mobileControls .group{display:flex;gap:9px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+ <div id="top"><div class="pill">🪙 <span id="coins">0</span></div><div class="pill">DIST <span id="dist">0</span> m</div></div>
+ <div id="hint">SWIPE ◀ ▶ to change lane · ↑ jump · ↓ slide</div>
+</div>
+<div id="mobileControls">
+ <div class="group"><button class="ctrl" id="left">◀</button><button class="ctrl" id="right">▶</button></div>
+ <div class="group"><button class="ctrl" id="jump">⬆</button><button class="ctrl" id="slide">⬇</button></div>
+</div>
+<div id="overlay">
+ <div class="panel">
+  <div style="font-size:38px">🏹 ✨ 🪙</div>
+  <h1>DIVINE DASH</h1>
+  <p>Run through an ancient Indian-inspired world. Collect coins, dodge obstacles and see how far you can go!</p>
+  <div id="pick">
+   <button class="pick active" data-char="0">VANARA<br>HERO</button>
+   <button class="pick" data-char="1">ARCHER<br>PRINCE</button>
+   <button class="pick" data-char="2">FLUTE<br>GUARDIAN</button>
+  </div>
+  <button id="start">▶ START RUN</button>
+  <div id="sub">Original characters · Endless runner prototype</div>
+ </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(()=> {
+const game=document.getElementById('game'), overlay=document.getElementById('overlay');
+if(!window.THREE){document.querySelector('h1').textContent='INTERNET REQUIRED';document.querySelector('p').textContent='Please connect to the internet and reload so the 3D engine can load.';return;}
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x91c9e8); scene.fog=new THREE.Fog(0x91c9e8,28,115);
+const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,.1,180);camera.position.set(0,5.2,9.4);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;game.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xdff5ff,0x54452b,2.0));
+const sun=new THREE.DirectionalLight(0xfff0c9,2.2);sun.position.set(-5,12,8);sun.castShadow=true;scene.add(sun);
+const mat=(color,rough=.8,metal=0)=>new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal});
+const roadMat=mat(0x343f4e),lineMat=mat(0xf7dca0),grassMat=mat(0x477b43),goldMat=mat(0xffc52f,.3,.6),rockMat=mat(0x9c6742),woodMat=mat(0x75412a),leafMat=mat(0x246a4b),skinMat=mat(0xc98658);
+const road=new THREE.Mesh(new THREE.BoxGeometry(8,.2,150),roadMat);road.position.set(0,-.12,-48);road.receiveShadow=true;scene.add(road);
+const ground=new THREE.Mesh(new THREE.BoxGeometry(100,.3,160),grassMat);ground.position.set(0,-.35,-45);ground.receiveShadow=true;scene.add(ground);
+for(let z=-120;z<20;z+=5){for(const x of [-1.33,1.33]){let dash=new THREE.Mesh(new THREE.BoxGeometry(.07,.025,2.3),lineMat);dash.position.set(x,.005,z);scene.add(dash);}}
+const lanes=[-2.25,0,2.25];
+function tree(x,z,s=1){let g=new THREE.Group();let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.16*s,.23*s,1.7*s,7),woodMat);trunk.position.y=.55*s;trunk.castShadow=true;g.add(trunk);for(let i=0;i<3;i++){let crown=new THREE.Mesh(new THREE.ConeGeometry((.8-i*.13)*s,1.5*s,8),leafMat);crown.position.y=(1.5+i*.65)*s;crown.castShadow=true;g.add(crown)}g.position.set(x,0,z);scene.add(g);return g}
+const scenery=[];for(let z=-115;z<15;z+=7){scenery.push(tree(-6.2-(Math.random()*2),z,.7+Math.random()*.65));scenery.push(tree(6.2+Math.random()*2,z-2,.7+Math.random()*.65));}
+function makeHero(type=0){
+ const g=new THREE.Group();const colors=[0xe85d35,0x2267d5,0x168b78],cloth=mat(colors[type]),gold=mat(0xffd15b,.35,.35),dark=mat(0x252638);
+ const body=new THREE.Mesh(new THREE.CapsuleGeometry(.38,.72,4,8),cloth);body.position.y=1.15;body.castShadow=true;g.add(body);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.31,16,12),skinMat);head.position.y=1.88;head.castShadow=true;g.add(head);
+ const hair=new THREE.Mesh(new THREE.SphereGeometry(.33,12,8,0,Math.PI*2,0,Math.PI*.55),dark);hair.position.y=2.0;g.add(hair);
+ const band=new THREE.Mesh(new THREE.TorusGeometry(.31,.055,6,16),gold);band.position.y=2.02;band.rotation.x=Math.PI/2;g.add(band);
+ const armGeo=new THREE.CapsuleGeometry(.12,.43,3,6),legGeo=new THREE.CapsuleGeometry(.14,.42,3,6);
+ const limbs=[];
+ for(let side of [-1,1]){let a=new THREE.Mesh(armGeo,cloth);a.position.set(side*.48,1.22,0);a.rotation.z=side*.25;g.add(a);limbs.push(a);let l=new THREE.Mesh(legGeo,dark);l.position.set(side*.22,.42,0);g.add(l);limbs.push(l);}
+ const belt=new THREE.Mesh(new THREE.BoxGeometry(.7,.13,.45),gold);belt.position.y=.77;g.add(belt);
+ if(type===1){let bow=new THREE.Mesh(new THREE.TorusGeometry(.38,.045,6,14,Math.PI),gold);bow.position.set(.6,1.35,.05);bow.rotation.z=Math.PI/2;g.add(bow)}
+ if(type===2){let flute=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.85,8),gold);flute.rotation.z=Math.PI/2;flute.position.set(.5,1.35,.1);g.add(flute)}
+ if(type===0){let tail=new THREE.Mesh(new THREE.TorusGeometry(.35,.07,7,16,Math.PI*1.4),skinMat);tail.position.set(-.38,.55,.25);tail.rotation.z=-.6;g.add(tail)}
+ g.userData.limbs=limbs;return g;
+}
+let heroType=0,hero=makeHero(0);hero.position.set(0,0,2);scene.add(hero);
+document.querySelectorAll('.pick').forEach(b=>b.addEventListener('click',()=>{heroType=+b.dataset.char;document.querySelectorAll('.pick').forEach(x=>x.classList.toggle('active',x===b));scene.remove(hero);hero=makeHero(heroType);hero.position.set(lanes[lane],0,2);scene.add(hero)}));
+let lane=1,running=false,over=false,score=0,coins=0,speed=17,elapsed=0,jumpY=0,jumpV=0,slideT=0,spawnT=0,coinT=0,obstacles=[],coinObjects=[];
+const coinEl=document.getElementById('coins'),distEl=document.getElementById('dist');
+function makeObstacle(){let laneIdx=Math.floor(Math.random()*3),z=-105;let kind=Math.random()<.5?'rock':'gate';let g=new THREE.Group();if(kind==='rock'){let m=new THREE.Mesh(new THREE.DodecahedronGeometry(.65,0),rockMat);m.position.y=.55;m.castShadow=true;g.add(m)}else{let post1=new THREE.Mesh(new THREE.BoxGeometry(.18,1.25,.18),woodMat);post1.position.set(-.55,.62,0);g.add(post1);let post2=post1.clone();post2.position.x=.55;g.add(post2);let bar=new THREE.Mesh(new THREE.BoxGeometry(1.3,.2,.2),goldMat);bar.position.y=1.2;g.add(bar)}g.position.set(lanes[laneIdx],0,z);g.userData={lane:laneIdx,kind,passed:false};scene.add(g);obstacles.push(g)}
+function makeCoinLine(){let laneIdx=Math.floor(Math.random()*3);for(let i=0;i<5;i++){let c=new THREE.Mesh(new THREE.TorusGeometry(.28,.09,8,16),goldMat);c.position.set(lanes[laneIdx],1.2,-100-i*2.1);c.castShadow=true;scene.add(c);coinObjects.push(c)}}
+function reset(){for(const o of obstacles)scene.remove(o);for(const c of coinObjects)scene.remove(c);obstacles=[];coinObjects=[];lane=1;hero.position.set(0,0,2);jumpY=0;jumpV=0;slideT=0;score=0;coins=0;speed=17;elapsed=0;spawnT=.8;coinT=1.5;running=true;over=false;overlay.classList.add('hidden');coinEl.textContent='0';distEl.textContent='0';}
+function endGame(){running=false;over=true;overlay.classList.remove('hidden');document.querySelector('h1').textContent='RUN OVER';document.querySelector('p').textContent='Distance: '+Math.floor(score)+' m · Coins: '+coins+' — try again and beat your score!';document.getElementById('start').textContent='↻ RUN AGAIN';}
+function move(d){if(!running)return;lane=Math.max(0,Math.min(2,lane+d));}
+function jump(){if(running&&jumpY<=.02&&slideT<=0){jumpV=8.5}}
+function slide(){if(running&&jumpY<.1)slideT=.75}
+document.getElementById('start').addEventListener('click',()=>{document.querySelector('h1').textContent='DIVINE DASH';document.querySelector('p').textContent='Run through an ancient Indian-inspired world. Collect coins, dodge obstacles and see how far you can go!';reset()});
+document.getElementById('left').addEventListener('click',()=>move(-1));document.getElementById('right').addEventListener('click',()=>move(1));document.getElementById('jump').addEventListener('click',jump);document.getElementById('slide').addEventListener('click',slide);
+let sx=0,sy=0;renderer.domElement.addEventListener('touchstart',e=>{sx=e.changedTouches[0].clientX;sy=e.changedTouches[0].clientY},{passive:true});renderer.domElement.addEventListener('touchend',e=>{let dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;if(Math.max(Math.abs(dx),Math.abs(dy))<25)return;if(Math.abs(dx)>Math.abs(dy))move(dx>0?1:-1);else if(dy<0)jump();else slide()},{passive:true});
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')move(-1);if(e.key==='ArrowRight'||e.key==='d')move(1);if(e.key==='ArrowUp'||e.key===' ')jump();if(e.key==='ArrowDown'||e.key==='s')slide()});
+function animate(){requestAnimationFrame(animate);let dt=Math.min(clock.getDelta(),.04);if(running){elapsed+=dt;score+=speed*dt*.8;speed=Math.min(29,17+elapsed*.13);spawnT-=dt;coinT-=dt;if(spawnT<=0){makeObstacle();spawnT=Math.max(.55,1.15-(speed-17)*.025)+Math.random()*.45}if(coinT<=0){makeCoinLine();coinT=2.1+Math.random()*1.3}
+hero.position.x+=(lanes[lane]-hero.position.x)*Math.min(1,dt*12);
+if(jumpY>0||jumpV>0){jumpY+=jumpV*dt;jumpV-=22*dt;if(jumpY<0){jumpY=0;jumpV=0}}if(slideT>0)slideT-=dt;
+hero.position.y=jumpY;hero.scale.y=slideT>0?.58:1;hero.rotation.z=(lanes[lane]-hero.position.x)*-.08;
+hero.userData.limbs.forEach((l,i)=>{l.rotation.x=Math.sin(elapsed*speed*.55+i*Math.PI)*.6});
+for(const t of scenery){t.position.z+=speed*dt;if(t.position.z>18)t.position.z=-120-Math.random()*15}
+for(let i=obstacles.length-1;i>=0;i--){let o=obstacles[i];o.position.z+=speed*dt;if(Math.abs(o.position.z-2)<1.1&&o.userData.lane===lane){let dodged=o.userData.kind==='rock'?jumpY>.7:slideT>0;if(!dodged){endGame();break}}if(o.position.z>12){scene.remove(o);obstacles.splice(i,1)}}
+for(let i=coinObjects.length-1;i>=0;i--){let c=coinObjects[i];c.position.z+=speed*dt;c.rotation.y+=dt*4;if(Math.abs(c.position.z-2)<1.25&&Math.abs(c.position.x-hero.position.x)<.8){coins++;coinEl.textContent=coins;scene.remove(c);coinObjects.splice(i,1);continue}if(c.position.z>12){scene.remove(c);coinObjects.splice(i,1)}}
+distEl.textContent=Math.floor(score);
+}
+camera.position.x+=(hero.position.x*.28-camera.position.x)*Math.min(1,dt*2);camera.lookAt(hero.position.x*.25,1.2,-8);renderer.render(scene,camera)}
+const clock=new THREE.Clock();animate();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+})();
+</script>
+</body>
+</html>
